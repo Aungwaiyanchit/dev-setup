@@ -18,6 +18,24 @@ return {
 
 		local keymap = vim.keymap -- for conciseness
 
+		local util = require("lspconfig.util")
+
+		local function get_typescript_server_path(root_dir)
+			local global_ts = "/opt/homebrew/lib/node_modules/typescript/lib"
+			local found_ts = ""
+			local function check_dir(path)
+				found_ts = util.path.join(path, "node_modules", "typescript", "lib")
+				if util.path.exists(found_ts) then
+					return path
+				end
+			end
+			if util.search_ancestors(root_dir, check_dir) then
+				return found_ts
+			else
+				return global_ts
+			end
+		end
+
 		vim.api.nvim_create_autocmd("LspAttach", {
 			group = vim.api.nvim_create_augroup("UserLspConfig", {}),
 			callback = function(ev)
@@ -86,13 +104,6 @@ return {
 				})
 			end,
 
-			["graphql"] = function()
-				-- configure graphql language server
-				lspconfig["graphql"].setup({
-					capabilities = capabilities,
-					filetypes = { "graphql", "gql", "svelte", "typescriptreact", "javascriptreact" },
-				})
-			end,
 			["emmet_ls"] = function()
 				-- configure emmet language server
 				lspconfig["emmet_ls"].setup({
@@ -109,27 +120,32 @@ return {
 					},
 				})
 			end,
+
 			["tsserver"] = function()
-				lspconfig["tsserver"].setup({
+				local mason_registry = require("mason-registry")
+				local vue_language_server_path = mason_registry.get_package("vue-language-server"):get_install_path()
+					.. "/node_modules/@vue/language-server"
+
+				lspconfig.tsserver.setup({
 					init_options = {
 						plugins = {
 							{
 								name = "@vue/typescript-plugin",
-								location = "/opt/homebrew/lib/node_modules/@vue/typescript-plugin/lib",
+								location = vue_language_server_path,
 								languages = { "vue" },
 							},
 						},
 					},
-					filetypes = { "vue" },
+					filetypes = { "typescript", "javascript", "javascriptreact", "typescriptreact", "vue" },
 				})
 			end,
+
 			["volar"] = function()
 				lspconfig["volar"].setup({
-					init_options = {
-						typescript = {
-							tsdk = "/opt/homebrew/lib/node_modules/typescript/lib",
-						},
-					},
+					capabilities = capabilities,
+					on_new_config = function(new_config, new_root_dir)
+						new_config.init_options.typescript.tsdk = get_typescript_server_path(new_root_dir)
+					end,
 				})
 			end,
 			["gopls"] = function()
